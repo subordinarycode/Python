@@ -31,9 +31,6 @@ else:
     error_box = "[!] "
 
 
-
-
-
 # Lists to be filled at runtime
 found_urls = []
 wordlist_line = []
@@ -165,7 +162,7 @@ def main(URL, wordlist, num_of_threads):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="UrlMap: Takes in a URl and wordlist. Then appends a word to the end of the Url and checks the response code.")
+    parser = argparse.ArgumentParser(description="url-brute: Takes in a URl and wordlist. Then appends a word to the end of the Url and checks the response code.")
     parser.add_argument("-u", type=str, required=True,help="Url to enumerate", dest="url")
     parser.add_argument("-w", type=str, required=True,help="Path to the wordlist.", dest="wordlist")
     parser.add_argument("-t", type=int, help="Number of threads to use. Default 200", default=200, dest="threads")
