@@ -8,15 +8,31 @@ import time
 import multiprocessing
 import argparse
 from colorama import Fore, Style
+import random 
+import subprocess
+
 
 # Colors
-red = Fore.RED
-yellow = Fore.YELLOW
-blue = Fore.BLUE
-norm = Style.RESET_ALL
-green = Fore.GREEN
-box = (red + "[" + yellow + "+" + red + "] " + norm)
-error_box = (red + "[" + yellow + "!" + red + "] " + norm)
+if sys.platform != "win32":
+    red = Fore.RED
+    yellow = Fore.YELLOW
+    blue = Fore.BLUE
+    norm = Style.RESET_ALL
+    green = Fore.GREEN
+    box = (red + "[" + yellow + "+" + red + "] " + norm)
+    error_box = (red + "[" + yellow + "!" + red + "] " + norm)
+else:
+    red = ""
+    yellow = ""
+    blue = ""
+    norm = ""
+    green = ""
+    box = "[+] "
+    error_box = "[!] "
+
+
+
+
 
 # Lists to be filled at runtime
 found_urls = []
@@ -27,11 +43,13 @@ q = queue.Queue()
 
 # Spinning cursor for when script is running
 def spinning_cursor():
+    colors = [red, yellow, blue, green, norm]
     try:
         while True:
             for cursor in '\\|/-':
+                rand_color = random.choice(colors)
                 time.sleep(0.1)
-                sys.stdout.write('\r{}'.format(cursor))
+                sys.stdout.write(f'\r{rand_color}{cursor}{norm}')
                 sys.stdout.flush()
     except KeyboardInterrupt:
         exit(0)
@@ -71,17 +89,20 @@ def thread():
 
 def main(URL, wordlist, num_of_threads):
     if not os.path.exists(wordlist) and not os.path.isfile(wordlist):
-        print(f"Invalid wordlist file: {wordlist}")
+        print(f"{error_box}Invalid wordlist file: {wordlist}")
         exit(1)
+
 
     try:
         URL_Validate = urllib.request.urlopen(URL).getcode()
         if not URL_Validate == 200:
-            print(f"{error_box} {URL} Is not reachable.")
+            print(f"{error_box}{URL} Is not reachable.")
             exit(1)
+
     except ValueError:
-        print(f"{error_box} {URL} Is not a valid URL.")
+        print(f"{error_box}{URL} Is not a valid URL.")
         exit(1)
+
 
     with open(wordlist, "r") as f:
         for line in f:
@@ -89,12 +110,16 @@ def main(URL, wordlist, num_of_threads):
                 wordlist_line.append(line.strip())
                 q.put(line.strip())
 
+
+
     if sys.platform == "win32":
         os.system("cls")
         wordlist_split = wordlist.split("\\")
     else:
         os.system("clear")
         wordlist_split = wordlist.split("/")
+
+
 
     wordlist_name = wordlist_split[-1]
     print(blue + "=" * 60 + norm)
