@@ -1,4 +1,5 @@
-#! /bin/env python3
+#! /bin/env python3.10
+import re
 import sys
 import urllib.request
 import os
@@ -34,7 +35,8 @@ else:
 # Lists to be filled at runtime
 found_urls = []
 wordlist_line = []
-tryed_words = []
+
+worker_threads = []
 
 q = queue.Queue()
 
@@ -51,40 +53,76 @@ def spinning_cursor():
     except KeyboardInterrupt:
         exit(0)
 
+
+# If responce code is not over 400 print responce to screen
+def print_responce(status_code, url):
+    if status_code == 200:
+        print(f"{green}[+] {norm}{url}        Status: ({yellow}{status_code}{norm})")
+        found_urls.append(url)
+
+    elif status_code in range(300, 399):
+        print(f"{blue}[+] {norm}{url}        Status: ({yellow}{status_code}{norm})")
+
+    elif status_code in range(100, 199):
+        print(f"[+] {url}        Status: ({yellow}{status_code}{norm})")
+
+
 # Take Url and append a word from the wordlist and checks the response code
-def get_statusCode(word):
-    if len(tryed_words) == len(wordlist_line):
-        return
+def get_statusCode(word, new_url=""):
+    if new_url == "":
+        url = base_url + word
+    else:
+        url = new_url + word
 
-    URL_test = URL + word
-    if word not in tryed_words:
-        try:
-            tryed_words.append(word)
-            FOUND_url = urllib.request.urlopen(URL_test).getcode()
+    
+    try:
+        FOUND_url = urllib.request.urlopen(url).getcode()
+        print_responce(FOUND_url, url)
+    except KeyboardInterrupt:
+        exit()
+    except:
+        pass
 
-            if FOUND_url == 200:
-                print(f"{green}[+] {norm}{URL_test}        Status: ({yellow}{FOUND_url}{norm})")
-                found_urls.append(URL_test)
-            elif FOUND_url in range(300, 399):
-                print(f"{blue}[+] {norm}{URL_test}        Status: ({yellow}{FOUND_url}{norm})")
-            elif FOUND_url in range(100, 199):
-                print(f"[+] {URL_test}        Status: ({yellow}{FOUND_url}{norm})")
-        except KeyboardInterrupt:
-            exit()
-        except:
-            pass
+    
+
+
 
 # Grabs a word from the queue and runs the get_statusCode function
-def thread():
-    while True:
+def thread(url=""):
+    while q.qsize() > 0:
         word = q.get()
         if word != "":
             word = "/" + word
-            get_statusCode(word)
+
+            get_statusCode(word, url)
         q.task_done()
 
 
+# Menu for when enumeration has started
+def print_menu(wordlist, num_of_threads, URL):
+    if sys.platform == "win32":
+        os.system("cls")
+        wordlist_split = wordlist.split("\\")
+    else:
+        os.system("clear")
+        wordlist_split = wordlist.split("/")
+
+
+
+    wordlist_name = wordlist_split[-1]
+    
+    print(blue + "=" * 60 + norm)
+    print(f"""{box} Url     :                 {URL}
+{box} Threads :                 {num_of_threads}
+{box} Wordlist:                 {wordlist_name}
+ """)
+    print(blue + "=" * 18 + yellow + " Starting Enumeration " + blue + "=" * 19 + norm)
+
+
+
 def main(URL, wordlist, num_of_threads):
+    
+
     if not os.path.exists(wordlist) and not os.path.isfile(wordlist):
         print(f"{error_box}Invalid wordlist file: {wordlist}")
         exit(1)
@@ -95,7 +133,6 @@ def main(URL, wordlist, num_of_threads):
         if not URL_Validate == 200:
             print(f"{error_box}{URL} Is not reachable.")
             exit(1)
-
     except ValueError:
         print(f"{error_box}{URL} Is not a valid URL.")
         exit(1)
@@ -109,22 +146,7 @@ def main(URL, wordlist, num_of_threads):
 
 
 
-    if sys.platform == "win32":
-        os.system("cls")
-        wordlist_split = wordlist.split("\\")
-    else:
-        os.system("clear")
-        wordlist_split = wordlist.split("/")
-
-
-
-    wordlist_name = wordlist_split[-1]
-    print(blue + "=" * 60 + norm)
-    print(f"""{box} Url     :                 {URL}
-{box} Threads :                 {num_of_threads}
-{box} Wordlist:                 {wordlist_name}
- """)
-    print(blue + "=" * 18 + yellow + " Starting Enumeration " + blue + "=" * 19 + norm)
+    print_menu(wordlist, num_of_threads, URL)
 
     p1 = multiprocessing.Process(target=spinning_cursor)
     p1.start()
@@ -133,29 +155,41 @@ def main(URL, wordlist, num_of_threads):
         t = threading.Thread(target=thread)
         t.daemon = True
         t.start()
+        worker_threads.append(t)
+
 
     try:
-        q.join()
+        for Thread in worker_threads:
+            Thread.join()
+
     except KeyboardInterrupt:
         exit()
 
-    print(f"\n\n{box}Finished wordlist\n{box}Starting stage 2.")
-    # Stage 2
-    for _ in found_urls:
-        tryed_words.clear()
 
+
+    print(f"\n\n{box}Finished wordlist\n{box}Starting stage 2.")
+   
+   
+    # Stage 2
+    for URL in found_urls:
         for line in (wordlist_line):
             q.put(line)
 
-        for _ in range(num_of_threads):
-            t = threading.Thread(target=thread,)
+
+        for i in range(num_of_threads):
+            t = threading.Thread(target=thread, args=(URL,))
             t.daemon = True
+            worker_threads.append(t)
             t.start()
 
         try:
-            q.join()
+            for Thread in worker_threads:
+                Thread.join()
+
         except KeyboardInterrupt:
             exit()
+
+
 
     p1.kill()
     print(blue + "=" * 24 + yellow + " Finished " + blue + "=" * 25 + norm)
@@ -167,5 +201,5 @@ if __name__ == "__main__":
     parser.add_argument("-w", type=str, required=True,help="Path to the wordlist.", dest="wordlist")
     parser.add_argument("-t", type=int, help="Number of threads to use. Default 200", default=200, dest="threads")
     parsed_args = parser.parse_args()
-    URL = str(parsed_args.url)
-    main(URL, parsed_args.wordlist, parsed_args.threads)
+    base_url = parsed_args.url
+    main(parsed_args.url, parsed_args.wordlist, parsed_args.threads)
