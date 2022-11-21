@@ -1,5 +1,5 @@
-#! /bin/env python3.10
-import re
+#! /bin/env python3
+
 import sys
 import urllib.request
 import os
@@ -8,35 +8,27 @@ import queue
 import time
 import multiprocessing
 import argparse
-from colorama import Fore, Style
+from colorama import Fore
 import random 
-import subprocess
+
 
 
 # Colors
-if sys.platform != "win32":
-    red = Fore.RED
-    yellow = Fore.YELLOW
-    blue = Fore.BLUE
-    norm = Style.RESET_ALL
-    green = Fore.GREEN
-    box = (red + "[" + yellow + "+" + red + "] " + norm)
-    error_box = (red + "[" + yellow + "!" + red + "] " + norm)
-else:
-    red = ""
-    yellow = ""
-    blue = ""
-    norm = ""
-    green = ""
-    box = "[+] "
-    error_box = "[!] "
+red = Fore.RED
+yellow = Fore.YELLOW
+blue = Fore.BLUE
+norm = Fore.RED
+green = Fore.GREEN
+box = (red + "[" + yellow + "+" + red + "] " + norm)
+error_box = (red + "[" + yellow + "!" + red + "] " + norm)
+
 
 
 # Lists to be filled at runtime
 found_urls = []
 wordlist_line = []
-
 worker_threads = []
+
 
 q = queue.Queue()
 
@@ -79,12 +71,10 @@ def get_statusCode(word, new_url=""):
         FOUND_url = urllib.request.urlopen(url).getcode()
         print_responce(FOUND_url, url)
     except KeyboardInterrupt:
+        p1.kill()
         exit()
     except:
         pass
-
-    
-
 
 
 # Grabs a word from the queue and runs the get_statusCode function
@@ -148,7 +138,7 @@ def main(URL, wordlist, num_of_threads):
 
     print_menu(wordlist, num_of_threads, URL)
 
-    p1 = multiprocessing.Process(target=spinning_cursor)
+    
     p1.start()
 
     for i in range(num_of_threads):
@@ -163,6 +153,7 @@ def main(URL, wordlist, num_of_threads):
             Thread.join()
 
     except KeyboardInterrupt:
+        p1.kill()
         exit()
 
 
@@ -187,6 +178,7 @@ def main(URL, wordlist, num_of_threads):
                 Thread.join()
 
         except KeyboardInterrupt:
+            p1.kill()
             exit()
 
 
@@ -199,7 +191,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="url-brute: Takes in a URl and wordlist. Then appends a word to the end of the Url and checks the response code.")
     parser.add_argument("-u", type=str, required=True,help="Url to enumerate", dest="url")
     parser.add_argument("-w", type=str, required=True,help="Path to the wordlist.", dest="wordlist")
-    parser.add_argument("-t", type=int, help="Number of threads to use. Default 200", default=200, dest="threads")
+    parser.add_argument("-t", type=int, help="Number of threads to use. Default 100", default=100, dest="threads")
     parsed_args = parser.parse_args()
-    base_url = parsed_args.url
+    
+    base_url = parsed_args.url 
+    p1 = multiprocessing.Process(target=spinning_cursor)
+    
     main(parsed_args.url, parsed_args.wordlist, parsed_args.threads)
