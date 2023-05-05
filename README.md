@@ -33,6 +33,10 @@ Installation
     
     pip3 install -r requirements.txt
     
+# logFilter
+A small script to help filter down log files
+
+
 # Disclaimer 
 All scrips where designed to be used for ethical hacking and educational purposes only 
 
