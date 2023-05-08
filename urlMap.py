@@ -1,7 +1,6 @@
 #! /bin/env python3
 
 import sys
-import urllib.request
 import os
 import threading
 import queue
@@ -9,15 +8,18 @@ import time
 import multiprocessing
 import argparse
 from colorama import Fore
-import random 
+import random
+import requests
+import urllib3
 
-
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Colors
 red = Fore.RED
 yellow = Fore.YELLOW
 blue = Fore.BLUE
-norm = Fore.RED
+norm = Fore.RESET
 green = Fore.GREEN
 box = (red + "[" + yellow + "+" + red + "] " + norm)
 error_box = (red + "[" + yellow + "!" + red + "] " + norm)
@@ -26,9 +28,7 @@ error_box = (red + "[" + yellow + "!" + red + "] " + norm)
 
 # Lists to be filled at runtime
 found_urls = []
-wordlist_line = []
 worker_threads = []
-
 
 q = queue.Queue()
 
@@ -46,30 +46,20 @@ def spinning_cursor():
         exit(0)
 
 
-# If responce code is not over 400 print responce to screen
-def print_responce(status_code, url):
-    if status_code == 200:
-        print(f"{green}[+] {norm}{url}        Status: ({yellow}{status_code}{norm})")
-        found_urls.append(url)
-
-    elif status_code in range(300, 399):
-        print(f"{blue}[+] {norm}{url}        Status: ({yellow}{status_code}{norm})")
-
-    elif status_code in range(100, 199):
-        print(f"[+] {url}        Status: ({yellow}{status_code}{norm})")
-
-
 # Take Url and append a word from the wordlist and checks the response code
-def get_statusCode(word, new_url=""):
-    if new_url == "":
-        url = base_url + word
-    else:
-        url = new_url + word
-
-    
+def get_statusCode(url):
     try:
-        FOUND_url = urllib.request.urlopen(url).getcode()
-        print_responce(FOUND_url, url)
+        r = requests.get(url, verify=False)
+        if r.status_code == 200:
+            print(f"{green}[+] {norm}{url}        Status: ({yellow}{status_code}{norm})")
+            found_urls.append(url)
+
+        elif r.status_code in range(300, 399):
+            print(f"{blue}[+] {norm}{url}        Status: ({yellow}{status_code}{norm})")
+
+        elif r.status_code in range(100, 199):
+            print(f"[+] {url}        Status: ({yellow}{status_code}{norm})")
+
     except KeyboardInterrupt:
         p1.kill()
         exit()
@@ -78,71 +68,69 @@ def get_statusCode(word, new_url=""):
 
 
 # Grabs a word from the queue and runs the get_statusCode function
-def thread(url=""):
+def thread(url):
     while q.qsize() > 0:
         word = q.get()
-        if word != "":
-            word = "/" + word
+        if not url.endswith("/"):
+            new_url = f"{url}/{word}"
+        else:
+            new_url = url + word
 
-            get_statusCode(word, url)
+        get_statusCode(new_url)
         q.task_done()
+    return
 
 
 # Menu for when enumeration has started
-def print_menu(wordlist, num_of_threads, URL):
+def print_menu():
     if sys.platform == "win32":
         os.system("cls")
-        wordlist_split = wordlist.split("\\")
+        wordlist_name = args.wordlist.split("\\")[-1]
     else:
         os.system("clear")
-        wordlist_split = wordlist.split("/")
+        wordlist_name = args.wordlist.split("/")[-1]
 
-
-
-    wordlist_name = wordlist_split[-1]
-    
     print(blue + "=" * 60 + norm)
-    print(f"""{box} Url     :                 {URL}
-{box} Threads :                 {num_of_threads}
+    print(f"""{box} Url     :                 {args.url}
+{box} Threads :                 {args.threads}
 {box} Wordlist:                 {wordlist_name}
  """)
     print(blue + "=" * 18 + yellow + " Starting Enumeration " + blue + "=" * 19 + norm)
 
 
 
-def main(URL, wordlist, num_of_threads):
-    
+def main():
+    wordlist = []
 
-    if not os.path.exists(wordlist) and not os.path.isfile(wordlist):
-        print(f"{error_box}Invalid wordlist file: {wordlist}")
+    if not os.path.isfile(args.wordlist):
+        print(f"{error_box}Invalid wordlist file: {args.wordlist}")
         exit(1)
-
 
     try:
-        URL_Validate = urllib.request.urlopen(URL).getcode()
-        if not URL_Validate == 200:
-            print(f"{error_box}{URL} Is not reachable.")
+        r = requests.get(args.url, verify=False)
+        if not r.ok:
+            print(f"{error_box}{args.url} Is not reachable.")
             exit(1)
-    except ValueError:
-        print(f"{error_box}{URL} Is not a valid URL.")
+    except:
+        print(f"{error_box}{args.url} Is not reachable.")
         exit(1)
 
 
-    with open(wordlist, "r") as f:
-        for line in f:
-            if line != "" and not line.startswith("#") and line != "/":
-                wordlist_line.append(line.strip())
+    with open(args.wordlist, "r") as f:
+        content = f.read().split("\n")
+
+    for line in content:
+        if line and line != "/":
+            if not line.startswith("#"):
+                wordlist.append(line.strip())
                 q.put(line.strip())
 
-
-
-    print_menu(wordlist, num_of_threads, URL)
-
-    
+    print_menu()
     p1.start()
 
-    for i in range(num_of_threads):
-        t = threading.Thread(target=thread)
+
+    for i in range(args.threads):
+        t = threading.Thread(target=thread, args=[args.url])
         t.daemon = True
         t.start()
         worker_threads.append(t)
@@ -156,19 +144,16 @@ def main(URL, wordlist, num_of_threads):
         p1.kill()
         exit()
 
-
-
     print(f"\n\n{box}Finished wordlist\n{box}Starting stage 2.")
-   
-   
+
+
     # Stage 2
-    for URL in found_urls:
-        for line in (wordlist_line):
+    for url in found_urls:
+        for line in wordlist:
             q.put(line)
 
-
-        for i in range(num_of_threads):
-            t = threading.Thread(target=thread, args=(URL,))
+        for i in range(args.threads):
+            t = threading.Thread(target=thread, args=[url])
             t.daemon = True
             worker_threads.append(t)
             t.start()
@@ -181,20 +166,19 @@ def main(URL, wordlist, num_of_threads):
             p1.kill()
             exit()
 
-
-
     p1.kill()
     print(blue + "=" * 24 + yellow + " Finished " + blue + "=" * 25 + norm)
+
+
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="url-brute: Takes in a URl and wordlist. Then appends a word to the end of the Url and checks the response code.")
     parser.add_argument("-u", type=str, required=True,help="Url to enumerate", dest="url")
     parser.add_argument("-w", type=str, required=True,help="Path to the wordlist.", dest="wordlist")
-    parser.add_argument("-t", type=int, help="Number of threads to use. Default 100", default=100, dest="threads")
-    parsed_args = parser.parse_args()
-    
-    base_url = parsed_args.url 
+    parser.add_argument("-t", type=int, help="Number of threads to use. Default 20", default=20, dest="threads")
+    args = parser.parse_args()
+
     p1 = multiprocessing.Process(target=spinning_cursor)
-    
-    main(parsed_args.url, parsed_args.wordlist, parsed_args.threads)
+
+    main()
